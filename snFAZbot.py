@@ -1,4 +1,4 @@
-$pythonCode = 'import logging
+import logging
 import requests
 import os
 from telegram import Update
@@ -10,7 +10,7 @@ TELEGRAM_TOKEN = "8874266093:AAHXCgGS_VkfSJ3XBBocucSZuN6AYhwlWRM"
 
 def fetch_via_global_net(username):
     media_urls = []
-    url = f"https://api.allorigins.win/get?url={requests.utils.quote(f''https://storysharing.snapchat.com/v1/fetchStory?id={username}&type=NAME'')}"
+    url = f"https://api.allorigins.win/get?url={requests.utils.quote(f'https://storysharing.snapchat.com/v1/fetchStory?id={username}&type=NAME')}"
     try:
         response = requests.get(url, timeout=15)
         if response.status_code == 200:
@@ -53,7 +53,6 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # 🌍 إعدادات الـ Webhook المتوافقة تماماً مع Render مجاناً
     PORT = int(os.environ.get("PORT", 8080))
     RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
     
@@ -70,4 +69,4 @@ def main():
         app.run_polling()
 
 if __name__ == "__main__":
-    main()'; [System.IO.File]::WriteAllText((Get-Item .).FullName + "\snFAZbot.py", $pythonCode, [System.Text.Encoding]::UTF8)
+    main()
