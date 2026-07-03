@@ -1,72 +1,66 @@
 import logging
 import requests
 import os
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import asyncio
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+# إعداد السجل
+logging.basicConfig(level=logging.INFO)
 
-TELEGRAM_TOKEN = "8874266093:AAHXCgGS_VkfSJ3XBBocucSZuN6AYhwlWRM"
+# التوكن
+TOKEN = "8874266093:AAHXCgGS_VkfSJ3XBBocucSZuN6AYhwlWRM"
 
-def fetch_via_global_net(username):
-    media_urls = []
+# كود جلب السنابات
+def fetch_stories(username):
     url = f"https://api.allorigins.win/get?url={requests.utils.quote(f'https://storysharing.snapchat.com/v1/fetchStory?id={username}&type=NAME')}"
     try:
-        response = requests.get(url, timeout=15)
-        if response.status_code == 200:
+        res = requests.get(url, timeout=10)
+        if res.status_code == 200:
             import json
-            contents = response.json().get("contents", "{}")
-            response_data = json.loads(contents)
-            story = response_data.get("story", {})
-            snaps = story.get("snaps", [])
-            for snap in snaps:
-                media_info = snap.get("media", {})
-                media_url = media_info.get("mediaUrl") or media_info.get("zippedMediaUrl")
-                if media_url and media_url not in media_urls:
-                    media_urls.append(media_url)
-    except Exception as e:
-        print(f"Error fetching: {e}")
-    return media_urls
+            data = json.loads(res.json().get("contents", "{}"))
+            return data.get("story", {}).get("snaps", [])
+    except: return []
+    return []
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👻 بوت FAZ السحابي المشغل على Render جاهز!\n\nأرسل يوزر السناب العام وسأجلب لك القصص مقاطع وصور فوراً 24 ساعة! 🚀")
+# أوامر البوت
+async def start(update, context):
+    await update.message.reply_text("👻 بوت FAZ يعمل الآن في السحاب 24/7!")
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    username = update.message.text.strip().lower().replace("@", "").split("/")[-1].split("?")[0]
-    await update.message.reply_text(f"⏳ جاري الفحص والسحب الفوري لـ `{username}` عبر السحاب...")
-    stories = fetch_via_global_net(username)
-    if not stories:
-        await update.message.reply_text("❌ لم أجد سنابات عامة نشطة حالياً، أو أن الحساب خاص.")
+async def handle_message(update, context):
+    user = update.message.text.strip().lower().replace("@", "")
+    await update.message.reply_text(f"⏳ جاري سحب سنابات {user}...")
+    snaps = fetch_stories(user)
+    if not snaps:
+        await update.message.reply_text("❌ لا يوجد سنابات عامة.")
         return
-    await update.message.reply_text(f"✅ تم العثور على {len(stories)} سناب نشط! جاري الإرسال...")
-    for index, media_url in enumerate(stories, start=1):
-        try:
-            if "mp4" in media_url.lower() or "webm" in media_url.lower():
-                await update.message.reply_video(video=media_url, caption=f"🎬 سناب {index}")
-            else:
-                await update.message.reply_photo(photo=media_url, caption=f"📸 سناب {index}")
-        except Exception:
-            await update.message.reply_text(f"🔗 رابط السناب المباشر {index}:\n{media_url}")
+    for s in snaps:
+        url = s.get("media", {}).get("mediaUrl")
+        if url:
+            try:
+                if "mp4" in url: await update.message.reply_video(url)
+                else: await update.message.reply_photo(url)
+            except: pass
 
-def main():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+# تزييف خادم ويب عشان Render يرضى
+class SimpleServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running!")
+
+def run_server():
+    server = HTTPServer(('0.0.0.0', int(os.environ.get("PORT", 8080))), SimpleServer)
+    server.serve_forever()
+
+if __name__ == '__main__':
+    # تشغيل الخادم الوهمي في خلفية
+    Thread(target=run_server, daemon=True).start()
+    
+    # تشغيل البوت بأسلوب كلاسيكي مستقر
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    PORT = int(os.environ.get("PORT", 8080))
-    RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
-    
-    if RENDER_EXTERNAL_URL:
-        print(f"⚡ [🚀 LIVE] تشغيل البوت عبر الـ Webhook على الرابط: {RENDER_EXTERNAL_URL}")
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=TELEGRAM_TOKEN,
-            webhook_url=f"{RENDER_EXTERNAL_URL}/{TELEGRAM_TOKEN}"
-        )
-    else:
-        print("⚡ [🚀 LIVE] تشغيل البوت الاحتياطي عبر Polling...")
-        app.run_polling()
-
-if __name__ == "__main__":
-    main()
+    print("🚀 البوت الآن يعمل!")
+    app.run_polling()
